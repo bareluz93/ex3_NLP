@@ -32,8 +32,6 @@ class sparse_vector():
             self.vec[key] *= a
 
     def add(self, other):
-        # ret = sparse_vector([],self.size)
-        # ret.vec = copy.deepcopy(self.vec)
         for key in other.vec:
             if key in self.vec:
                 self.vec[key] += other.vec[key]
@@ -41,7 +39,5 @@ class sparse_vector():
                 self.vec[key] = other.vec[key]
 
     def sub(self, other):
-        # other_copy = sparse_vector([],self.size)
-        # other_copy.vec = copy.deepcopy(other.vec)
         other.mult_by_scalar(-1)
         self.add(other)

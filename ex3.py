@@ -92,7 +92,7 @@ def sentence_to_full_graph(feature_function, w, sentence):
 
 # compute and sum all the feature-vectors of all the archs in a graph
 def sum_tree(tree, tagged_sent, feature_function):
-    ret=sparse_vector([],N**2+T++2)
+    ret=sparse_vector([],N**2+T**2)
     for node1 in tree:
         neighbours=tree[node1]
         for node2 in neighbours:
@@ -115,7 +115,7 @@ def to_tree(prs_sent):
 # the perceptron learning algorithem
 def perceptron(learning_rate=1,itertations=2, dist_feature=False):
     # the weight vector is sparse, for convinient and running time reasons.
-    weight=sparse_vector([],N**2+T++2)
+    weight=sparse_vector([],N**2+T**2)
     rand_iter = list(range(len(train_parsed)))
     random.shuffle(rand_iter)
 
@@ -124,7 +124,7 @@ def perceptron(learning_rate=1,itertations=2, dist_feature=False):
     else:
         feature_function_to_use = feature_function_w_dist
 
-    w_sum = sparse_vector([],N**2+T++2)
+    w_sum = sparse_vector([],N**2+T**2)
     for i in range(itertations):
         for j in rand_iter:
             G = sentence_to_full_graph(feature_function_to_use, weight, train_tagged[j])
