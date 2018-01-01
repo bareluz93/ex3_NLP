@@ -52,8 +52,8 @@ def tag_bigram_feature(w1,w2):
 # return the index of the '1' in the distance feature vector, or None if this feature vector should not contain '1'
 def distance_feature(i,j):
     ret = min(j-i-1,3)
-    # if ret < 0:
-    #     return None
+    if ret < 0:
+        return None
     return min(j-i-1,3)
 
 # feature function, contain only word-bigram and POS-bigram tags
@@ -69,10 +69,11 @@ def feature_function(w1, t1, w2, t2,i,j):
 def feature_function_w_dist(w1, t1, w2, t2,i,j):
     feature_vec = feature_function(w1, t1, w2, t2,i,j)
     d_feature = distance_feature(i, j)
-    # if d_feature == None:
-    #     temp3 = sparse_vector([], 4)
-    # else:
-    temp3 = sparse_vector([d_feature], 4)
+    temp3 = 0
+    if d_feature == None:
+        temp3 = sparse_vector([], 4)
+    else:
+        temp3 = sparse_vector([d_feature], 4)
     feature_vec.concatenate(temp3)
     return feature_vec
 
@@ -118,7 +119,7 @@ def perceptron(learning_rate=1,itertations=2, dist_feature=False):
     rand_iter = list(range(len(train_parsed)))
     random.shuffle(rand_iter)
 
-    if dist_feature:
+    if not dist_feature:
         feature_function_to_use = feature_function
     else:
         feature_function_to_use = feature_function_w_dist
@@ -136,8 +137,8 @@ def perceptron(learning_rate=1,itertations=2, dist_feature=False):
             w_sum.add(weight)
             w_sum.mult_by_scalar(1.0 / (len(train_tagged) * itertations))
     return w_sum
-    # return weight
 
+# score a singl sentence
 def score_sent(w_train,tagged_sent,feature_function,gold_tree):
     G = sentence_to_full_graph(feature_function, w_train, tagged_sent)
     T = mst.mst(0, G)
@@ -151,6 +152,7 @@ def score_sent(w_train,tagged_sent,feature_function,gold_tree):
                     num_of_right_edges+=1
     return num_of_right_edges/len(tagged_sent)
 
+# score the whole test set
 def score(w_train, feature_function, test_gold, test_tag):
     sum_of_scores = 0
     for i in range(len(test_gold)):
