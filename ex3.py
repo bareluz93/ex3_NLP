@@ -54,15 +54,25 @@ def tag_bigram_feature(w1,w2):
     # feature_vec[tag2i[w1] * T+tag2i[w2]]=1
     return tag2i[w1] * T+tag2i[w2]
 
-# def distance_feature():
+def distance_feature(i,j):
+    return min(j-i-1,3)
 
-def feature_function(w1, t1, w2, t2):
+
+
+def feature_function(w1, t1, w2, t2,i,j):
     w_feature = word_bigram_feature(w1,w2)
     t_feature = tag_bigram_feature(t1,t2)
     temp1=sparse_vector([w_feature],N**2)
     temp2=sparse_vector([t_feature],T**2)
     temp1.concatenate(temp2)
     return temp1
+
+def feature_function_w_dist(w1, t1, w2, t2,i,j):
+    feature_vec = feature_function(w1, t1, w2, t2,i,j)
+    d_feature = distance_feature(i, j)
+    temp3 = sparse_vector([d_feature], 4)
+    feature_vec.concatenate(temp3)
+    return feature_vec
 
 
 # the feature_function gets 2 words and return feature-vector; the weight is this vector multiply w;
@@ -74,15 +84,15 @@ def sentence_to_full_graph(feature_function, w, sentence):
         graph[i] = dict()
         for j in range(len(sentence)):
             if i!=j:
-                weight = feature_function(sentence[i][0],sentence[i][1], sentence[j][0], sentence[j][1]).sparse_dot_by_sparse(w)
+                weight = feature_function(sentence[i][0],sentence[i][1], sentence[j][0], sentence[j][1], i, j).sparse_dot_by_sparse(w)
                 graph[i][j] = -weight
     return graph
-def sum_tree(tree, tagged_sent):
+def sum_tree(tree, tagged_sent, feature_function):
     ret=sparse_vector([],N**2+T++2)
     for node1 in tree:
         neighbours=tree[node1]
         for node2 in neighbours:
-            feature_vec=feature_function(tagged_sent[node1][0], tagged_sent[node1][1], tagged_sent[node2][0], tagged_sent[node2][1])
+            feature_vec=feature_function(tagged_sent[node1][0], tagged_sent[node1][1], tagged_sent[node2][0], tagged_sent[node2][1], node1, node2)
             ret.add(feature_vec)
     return ret
 
@@ -112,27 +122,25 @@ def to_tree(prs_sent):
 # print(".............................")
 # print(sum.vec)
 
-def perceptron(learning_rate=1,itertations=2):
+def perceptron(learning_rate=1,itertations=2, dist_feature=False):
     # weight=np.zeros(N**2+T++2)
     weight=sparse_vector([],N**2+T++2)
     rand_iter = list(range(len(train_parsed)))
     random.shuffle(rand_iter)
 
-    i = 0
+    if dist_feature:
+        feature_function_to_use = feature_function
+    else:
+        feature_function_to_use = feature_function_w_dist
 
     w_sum = sparse_vector([],N**2+T++2)
     for i in range(itertations):
         for j in rand_iter:
-
-            if i%20 == 0:
-                print(i)
-            i = i + 1
-
-            G = sentence_to_full_graph(feature_function, weight, train_tagged[j])
+            G = sentence_to_full_graph(feature_function_to_use, weight, train_tagged[j])
             T_opt=mst.mst(0,G)
             t = to_tree(train_parsed[j])
-            temp=sum_tree(t, train_tagged[j])
-            temp.sub(sum_tree(T_opt, train_tagged[j]))
+            temp=sum_tree(t, train_tagged[j], feature_function_to_use)
+            temp.sub(sum_tree(T_opt, train_tagged[j],feature_function_to_use))
             temp.mult_by_scalar(learning_rate)
             weight.add(temp)
             w_sum.add(weight)
@@ -168,5 +176,6 @@ print("--- %s seconds for learning ---" % (time.time() - start_time))
 start_time = time.time()
 
 # print(score(w,feature_function, train_parsed, train_tagged))
-print(score(w,feature_function, test_parsed, test_tagged))
+# print(score(w,feature_function, test_parsed, test_tagged))
+print(score(w,feature_function_w_dist, test_parsed, test_tagged))
 print("--- %s seconds for evaluation ---" % (time.time() - start_time))
