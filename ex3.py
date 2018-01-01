@@ -18,10 +18,10 @@ tagged_sents = []
 for sent in tagged_sents_orig:
     tagged_sents.append([('ROOT', 'ROOT')] + sent)
 
-train_tagged= tagged_sents[:int(len(parsed_sents) * 0.1)]
-train_parsed= parsed_sents[:int(len(parsed_sents) * 0.1)]
-test_parsed= parsed_sents[int(len(parsed_sents) * 0.1):int(len(tagged_sents) * 0.12)]
-test_tagged= tagged_sents[int(len(tagged_sents) * 0.1):int(len(tagged_sents) * 0.12)]
+train_tagged= tagged_sents[:int(len(parsed_sents) * 0.9)]
+train_parsed= parsed_sents[:int(len(parsed_sents) * 0.9)]
+test_parsed= parsed_sents[int(len(parsed_sents) * 0.9):]
+test_tagged= tagged_sents[int(len(tagged_sents) * 0.9):]
 def get_all_possible_tags_and_words(data_set):
     all_words = set()
     all_tags=set()
@@ -118,9 +118,16 @@ def perceptron(learning_rate=1,itertations=2):
     rand_iter = list(range(len(train_parsed)))
     random.shuffle(rand_iter)
 
+    i = 0
+
     w_sum = sparse_vector([],N**2+T++2)
     for i in range(itertations):
         for j in rand_iter:
+
+            if i%20 == 0:
+                print(i)
+            i = i + 1
+
             G = sentence_to_full_graph(feature_function, weight, train_tagged[j])
             T_opt=mst.mst(0,G)
             t = to_tree(train_parsed[j])
@@ -153,6 +160,13 @@ def score(w_train, feature_function, test_gold, test_tag):
     return sum_of_scores / len(test_gold)
 
 
+import time
+start_time = time.time()
 w = perceptron()
-print(score(w,feature_function, train_parsed, train_tagged))
-# print(score(w,feature_function, test_parsed, test_tagged))
+print("--- %s seconds for learning ---" % (time.time() - start_time))
+
+start_time = time.time()
+
+# print(score(w,feature_function, train_parsed, train_tagged))
+print(score(w,feature_function, test_parsed, test_tagged))
+print("--- %s seconds for evaluation ---" % (time.time() - start_time))
