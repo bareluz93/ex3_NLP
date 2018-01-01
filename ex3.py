@@ -1,27 +1,25 @@
 from nltk.corpus import dependency_treebank
-import numpy as np
-import sys
 import random
-from scipy.sparse import vstack
 import mst
 from sparse_vector import sparse_vector
 
-from scipy.sparse import csr_matrix
-from scipy.sparse import lil_matrix
-from scipy.sparse import dok_matrix
-
+# read parsed data ('gold' parsed sentences) and add 'ROOT' node with 'ROOT' tag
 parsed_sents=dependency_treebank.parsed_sents()
 for sent in parsed_sents:
     sent.nodes[0].update({'word': 'ROOT','tag': 'ROOT','ctag': 'ROOT'})
+# read taged data and add the word 'ROOT'
 tagged_sents_orig=dependency_treebank.tagged_sents()
 tagged_sents = []
 for sent in tagged_sents_orig:
     tagged_sents.append([('ROOT', 'ROOT')] + sent)
 
+# split train and test, from the parsed and frome the tagged-only sentences
 train_tagged= tagged_sents[:int(len(parsed_sents) * 0.9)]
 train_parsed= parsed_sents[:int(len(parsed_sents) * 0.9)]
 test_parsed= parsed_sents[int(len(parsed_sents) * 0.9):]
 test_tagged= tagged_sents[int(len(tagged_sents) * 0.9):]
+
+# create set of all possible tags and words.
 def get_all_possible_tags_and_words(data_set):
     all_words = set()
     all_tags=set()
@@ -37,28 +35,28 @@ def get_all_possible_tags_and_words(data_set):
     all_words.sort()
     return all_words,all_tags
 
-# all_words,all_tags = get_all_possible_tags_and_words(train_sents)
 all_words,all_tags = get_all_possible_tags_and_words(tagged_sents)
 tag2i = {pos: i for (i, pos) in enumerate(all_tags)}
 word2i = {word: i for (i, word) in enumerate(all_words)}
 N = len(all_words)
 T = len(all_tags)
 
+# return the index of the '1' in the words feature vector
 def word_bigram_feature(w1,w2):
-    # feature_vec =dok_matrix((N ** 2, 1), dtype=np.int32)
-    # feature_vec[word2i[w1] * N+word2i[w2]]=1
     return word2i[w1] * N+word2i[w2]
 
+# return the index of the '1' in the POS tags feature vector
 def tag_bigram_feature(w1,w2):
-    # feature_vec =dok_matrix((T ** 2, 1), dtype=np.int32)
-    # feature_vec[tag2i[w1] * T+tag2i[w2]]=1
     return tag2i[w1] * T+tag2i[w2]
 
+# return the index of the '1' in the distance feature vector, or None if this feature vector should not contain '1'
 def distance_feature(i,j):
+    ret = min(j-i-1,3)
+    # if ret < 0:
+    #     return None
     return min(j-i-1,3)
 
-
-
+# feature function, contain only word-bigram and POS-bigram tags
 def feature_function(w1, t1, w2, t2,i,j):
     w_feature = word_bigram_feature(w1,w2)
     t_feature = tag_bigram_feature(t1,t2)
@@ -67,17 +65,20 @@ def feature_function(w1, t1, w2, t2,i,j):
     temp1.concatenate(temp2)
     return temp1
 
+# full feature function, contain word-bigram feature, POS-bigram feature, and distance feature
 def feature_function_w_dist(w1, t1, w2, t2,i,j):
     feature_vec = feature_function(w1, t1, w2, t2,i,j)
     d_feature = distance_feature(i, j)
+    # if d_feature == None:
+    #     temp3 = sparse_vector([], 4)
+    # else:
     temp3 = sparse_vector([d_feature], 4)
     feature_vec.concatenate(temp3)
     return feature_vec
 
-
-# the feature_function gets 2 words and return feature-vector; the weight is this vector multiply w;
-# the result is graph as dict of dict as the mst wants.
-# the keys in the dictionary are the index of the word in the sentence.
+# the result is graph as dict of dict as the mst algorithem gets.
+# a key in the dictionary are the index of the word in the sentence.
+# graph[i][j] = -weight of the w_i ->w_j arch in the graph, the minus is because the mst search for minimum and we want maximum
 def sentence_to_full_graph(feature_function, w, sentence):
     graph = dict()
     for i in range(len(sentence)):
@@ -87,6 +88,8 @@ def sentence_to_full_graph(feature_function, w, sentence):
                 weight = feature_function(sentence[i][0],sentence[i][1], sentence[j][0], sentence[j][1], i, j).sparse_dot_by_sparse(w)
                 graph[i][j] = -weight
     return graph
+
+# compute and sum all the feature-vectors of all the archs in a graph
 def sum_tree(tree, tagged_sent, feature_function):
     ret=sparse_vector([],N**2+T++2)
     for node1 in tree:
@@ -96,13 +99,7 @@ def sum_tree(tree, tagged_sent, feature_function):
             ret.add(feature_vec)
     return ret
 
-# w_z = np.zeros((N**2 + T**2,1))
-# w_rand = np.random.randint(0,10, N**2 + T**2)
-# print(tagged_sents[0][:3])
-# G = sentence_to_full_graph(feature_function, w_rand, tagged_sents[0][:3])
-# tr = mst.mst(0, G)
-# print(G)
-# print(tr)
+# convert dependency-tree to tree of the type dict-in-dict, as the mst algo' return
 def to_tree(prs_sent):
     ret = {}
     for w1 in prs_sent.nodes:
@@ -114,16 +111,9 @@ def to_tree(prs_sent):
             ret[w1][w2] = 0
     return ret
 
-# t=to_tree(parsed_sents[0])
-# sum=sum_tree(t,train_tagged[0])
-# print(t)
-# print("...........................")
-# print(train_tagged[0])
-# print(".............................")
-# print(sum.vec)
-
+# the perceptron learning algorithem
 def perceptron(learning_rate=1,itertations=2, dist_feature=False):
-    # weight=np.zeros(N**2+T++2)
+    # the weight vector is sparse, for convinient and running time reasons.
     weight=sparse_vector([],N**2+T++2)
     rand_iter = list(range(len(train_parsed)))
     random.shuffle(rand_iter)
@@ -167,15 +157,10 @@ def score(w_train, feature_function, test_gold, test_tag):
         sum_of_scores += score_sent(w_train,test_tag[i],feature_function,test_gold[i])
     return sum_of_scores / len(test_gold)
 
-
 import time
 start_time = time.time()
-w = perceptron()
+w = perceptron(dist_feature=True)
 print("--- %s seconds for learning ---" % (time.time() - start_time))
-
 start_time = time.time()
-
-# print(score(w,feature_function, train_parsed, train_tagged))
-# print(score(w,feature_function, test_parsed, test_tagged))
-print(score(w,feature_function_w_dist, test_parsed, test_tagged))
+print("score for learning with the distance feature function is ", score(w, feature_function_w_dist, test_parsed, test_tagged))
 print("--- %s seconds for evaluation ---" % (time.time() - start_time))
